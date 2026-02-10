@@ -814,7 +814,22 @@ def dedupe_schemas_with_validation(
 
     diverged = True
     if enforce_schemas:
-        old_schema = unify_schemas_with_validation([old_schema, bundle.schema])
+        try:
+            old_schema = unify_schemas_with_validation([old_schema, bundle.schema])
+        except Exception as e:
+            # Older PyArrow versions can fail to merge primitive type changes
+            # (for example, int32 vs int64) even when we want permissive
+            # promotion. In that case, keep the previous schema and surface
+            # divergence via warning instead of failing pipeline execution.
+            if not (
+                e.__class__.__module__ == "pyarrow.lib"
+                and e.__class__.__name__ in {"ArrowInvalid", "ArrowTypeError"}
+            ):
+                raise
+            logger.debug(
+                "Failed to unify diverged schemas; falling back to previous schema.",
+                exc_info=True,
+            )
 
     return (
         RefBundle(

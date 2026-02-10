@@ -80,6 +80,29 @@ def test_dedupe_schema_divergence(
         assert out_bundle.schema == old_schema
 
 
+def test_dedupe_schema_unify_failure_falls_back(monkeypatch):
+    old_schema = pa.schema([pa.field("foo", pa.int32())])
+    incoming_schema = pa.schema([pa.field("foo", pa.int64())])
+    incoming_bundle = RefBundle([], owns_blocks=False, schema=incoming_schema)
+
+    def _raise_arrow_invalid(_schemas):
+        raise pa.lib.ArrowInvalid(
+            "Unable to merge: Field foo has incompatible types: int32 vs int64"
+        )
+
+    monkeypatch.setattr(
+        "ray.data._internal.execution.streaming_executor_state.unify_schemas_with_validation",
+        _raise_arrow_invalid,
+    )
+
+    out_bundle, diverged = dedupe_schemas_with_validation(
+        old_schema, incoming_bundle, enforce_schemas=True
+    )
+
+    assert diverged
+    assert out_bundle.schema == old_schema
+
+
 @pytest.mark.parametrize(
     "incoming_schema",
     [
