@@ -95,19 +95,59 @@ class Concatenator(Preprocessor):
         flatten: bool = False,
     ):
         super().__init__()
-        self.columns = columns
-        self.output_column_name = output_column_name
-        self.dtype = dtype
-        self.raise_if_missing = raise_if_missing
-        self.flatten = flatten
+        self._columns = columns
+        self._output_column_name = output_column_name
+        self._dtype = dtype
+        self._raise_if_missing = raise_if_missing
+        self._flatten = flatten
+
+    @property
+    def columns(self) -> List[str]:
+        return self._columns
+
+    @columns.setter
+    def columns(self, value: List[str]) -> None:
+        self._columns = value
+
+    @property
+    def output_column_name(self) -> str:
+        return self._output_column_name
+
+    @output_column_name.setter
+    def output_column_name(self, value: str) -> None:
+        self._output_column_name = value
+
+    @property
+    def dtype(self) -> Optional[np.dtype]:
+        return self._dtype
+
+    @dtype.setter
+    def dtype(self, value: Optional[np.dtype]) -> None:
+        self._dtype = value
+
+    @property
+    def raise_if_missing(self) -> bool:
+        return self._raise_if_missing
+
+    @raise_if_missing.setter
+    def raise_if_missing(self, value: bool) -> None:
+        self._raise_if_missing = value
+
+    @property
+    def flatten(self) -> bool:
+        return self._flatten
+
+    @flatten.setter
+    def flatten(self, value: bool) -> None:
+        self._flatten = value
 
     def _validate(self, df: pd.DataFrame) -> None:
-        missing_columns = set(self.columns) - set(df)
+        missing_columns = set(self._columns) - set(df)
         if missing_columns:
             message = (
-                f"Missing columns specified in '{self.columns}': {missing_columns}"
+                f"Missing columns specified in '{self._columns}': {missing_columns}"
             )
-            if self.raise_if_missing:
+            if self._raise_if_missing:
                 raise ValueError(message)
             else:
                 logger.warning(message)
@@ -115,33 +155,33 @@ class Concatenator(Preprocessor):
     def _transform_pandas(self, df: pd.DataFrame):
         self._validate(df)
 
-        if self.flatten:
-            concatenated = df[self.columns].to_numpy()
+        if self._flatten:
+            concatenated = df[self._columns].to_numpy()
             concatenated = [
                 np.concatenate(
                     [
                         np.atleast_1d(elem)
-                        if self.dtype is None
-                        else np.atleast_1d(elem).astype(self.dtype)
+                        if self._dtype is None
+                        else np.atleast_1d(elem).astype(self._dtype)
                         for elem in row
                     ]
                 )
                 for row in concatenated
             ]
         else:
-            concatenated = df[self.columns].to_numpy(dtype=self.dtype)
+            concatenated = df[self._columns].to_numpy(dtype=self._dtype)
 
-        df = df.drop(columns=self.columns)
+        df = df.drop(columns=self._columns)
         # Use a Pandas Series for column assignment to get more consistent
         # behavior across Pandas versions.
-        df.loc[:, self.output_column_name] = pd.Series(list(concatenated))
+        df.loc[:, self._output_column_name] = pd.Series(list(concatenated))
         return df
 
     def get_input_columns(self) -> List[str]:
-        return self.columns
+        return self._columns
 
     def get_output_columns(self) -> List[str]:
-        return [self.output_column_name]
+        return [self._output_column_name]
 
     def __repr__(self):
         default_values = {
@@ -162,7 +202,18 @@ class Concatenator(Preprocessor):
 
     def __setstate__(self, state: Dict[str, Any]) -> None:
         super().__setstate__(state)
-        # flatten is a recent field, to ensure backwards compatibility
-        # assign a default in case it is missing in the serialized state
-        if not hasattr(self, "flatten"):
-            self.flatten = False
+        # Backwards compatibility for older pickled objects.
+        if "_columns" not in self.__dict__ and "columns" in self.__dict__:
+            self._columns = self.__dict__.pop("columns")
+        if (
+            "_output_column_name" not in self.__dict__
+            and "output_column_name" in self.__dict__
+        ):
+            self._output_column_name = self.__dict__.pop("output_column_name")
+        if "_dtype" not in self.__dict__ and "dtype" in self.__dict__:
+            self._dtype = self.__dict__.pop("dtype")
+        if "_raise_if_missing" not in self.__dict__ and "raise_if_missing" in self.__dict__:
+            self._raise_if_missing = self.__dict__.pop("raise_if_missing")
+        # flatten is a relatively recent field; assign default if missing.
+        if "_flatten" not in self.__dict__:
+            self._flatten = self.__dict__.pop("flatten", False)
