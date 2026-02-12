@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Callable, Dict, List, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Union
 
 import numpy as np
 
@@ -105,6 +105,43 @@ class TorchVisionPreprocessor(Preprocessor):
             f"transform={self._torchvision_transform!r})"
         )
 
+    @property
+    def columns(self) -> List[str]:
+        return self._columns
+
+    @columns.setter
+    def columns(self, value: List[str]) -> None:
+        self._columns = value
+
+    @property
+    def output_columns(self) -> List[str]:
+        return self._output_columns
+
+    @output_columns.setter
+    def output_columns(self, value: List[str]) -> None:
+        self._output_columns = value
+
+    @property
+    def torchvision_transform(
+        self,
+    ) -> Callable[[Union["np.ndarray", "torch.Tensor"]], "torch.Tensor"]:
+        return self._torchvision_transform
+
+    @torchvision_transform.setter
+    def torchvision_transform(
+        self,
+        value: Callable[[Union["np.ndarray", "torch.Tensor"]], "torch.Tensor"],
+    ) -> None:
+        self._torchvision_transform = value
+
+    @property
+    def batched(self) -> bool:
+        return self._batched
+
+    @batched.setter
+    def batched(self, value: bool) -> None:
+        self._batched = value
+
     def _transform_numpy(
         self, data_batch: Dict[str, "np.ndarray"]
     ) -> Dict[str, "np.ndarray"]:
@@ -154,3 +191,24 @@ class TorchVisionPreprocessor(Preprocessor):
 
     def preferred_batch_format(cls) -> BatchFormat:
         return BatchFormat.NUMPY
+
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        super().__setstate__(state)
+        # Backwards compatibility for older pickled objects.
+        if "_columns" not in self.__dict__ and "columns" in self.__dict__:
+            self._columns = self.__dict__.pop("columns")
+        if "_output_columns" not in self.__dict__ and "output_columns" in self.__dict__:
+            self._output_columns = self.__dict__.pop("output_columns")
+        if (
+            "_torchvision_transform" not in self.__dict__
+            and "torchvision_transform" in self.__dict__
+        ):
+            self._torchvision_transform = self.__dict__.pop("torchvision_transform")
+        if "_torchvision_transform" not in self.__dict__ and "transform" in self.__dict__:
+            self._torchvision_transform = self.__dict__.pop("transform")
+        if "_batched" not in self.__dict__ and "batched" in self.__dict__:
+            self._batched = self.__dict__.pop("batched")
+        if "_output_columns" not in self.__dict__ and "_columns" in self.__dict__:
+            self._output_columns = self._columns
+        if "_batched" not in self.__dict__:
+            self._batched = False
