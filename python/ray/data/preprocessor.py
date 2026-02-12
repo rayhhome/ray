@@ -55,7 +55,7 @@ class Preprocessor(abc.ABC):
     def __init__(self):
         from ray.data.preprocessors.utils import StatComputationPlan
 
-        self.stat_computation_plan = StatComputationPlan()
+        self._stat_computation_plan = StatComputationPlan()
         self.stats_ = {}
 
     class FitStatus(str, Enum):
@@ -73,6 +73,14 @@ class Preprocessor(abc.ABC):
 
     # Preprocessors that do not need to be fitted must override this.
     _is_fittable = True
+
+    @property
+    def stat_computation_plan(self):
+        return self._stat_computation_plan
+
+    @stat_computation_plan.setter
+    def stat_computation_plan(self, value):
+        self._stat_computation_plan = value
 
     def _check_has_fitted_state(self):
         """Checks if the Preprocessor has fitted state.
@@ -125,14 +133,14 @@ class Preprocessor(abc.ABC):
                 "All previously fitted state will be overwritten!"
             )
 
-        self.stat_computation_plan.reset()
+        self._stat_computation_plan.reset()
         self.stats_ = {}
         fitted_ds = self._fit(ds)._fit_execute(ds)
         self._fitted = True
         return fitted_ds
 
     def _fit_execute(self, dataset: "Dataset"):
-        self.stats_ |= self.stat_computation_plan.compute(dataset)
+        self.stats_ |= self._stat_computation_plan.compute(dataset)
         return self
 
     def has_stats(self) -> bool:
@@ -443,14 +451,15 @@ class Preprocessor(abc.ABC):
         return BatchFormat.PANDAS
 
     def get_input_columns(self) -> List[str]:
-        return getattr(self, "_columns", [])
+        return getattr(self, "_columns", getattr(self, "columns", []))
 
     def get_output_columns(self) -> List[str]:
-        return getattr(self, "_output_columns", [])
+        return getattr(self, "_output_columns", getattr(self, "output_columns", []))
 
     def __getstate__(self) -> Dict[str, Any]:
         state = self.__dict__.copy()
         # Exclude unpicklable attributes
+        state.pop("_stat_computation_plan", None)
         state.pop("stat_computation_plan", None)
         return state
 
@@ -458,7 +467,7 @@ class Preprocessor(abc.ABC):
         from ray.data.preprocessors.utils import StatComputationPlan
 
         self.__dict__.update(state)
-        self.stat_computation_plan = StatComputationPlan()
+        self._stat_computation_plan = StatComputationPlan()
 
     @DeveloperAPI
     def serialize(self) -> str:
@@ -767,7 +776,7 @@ class SerializablePreprocessorBase(Preprocessor, abc.ABC):
             # handle base class fields here
             from ray.data.preprocessors.utils import StatComputationPlan
 
-            obj.stat_computation_plan = StatComputationPlan()
+            obj._stat_computation_plan = StatComputationPlan()
 
             obj._set_serializable_fields(fields=meta["fields"], version=meta["version"])
 
