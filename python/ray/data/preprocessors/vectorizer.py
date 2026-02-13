@@ -214,6 +214,10 @@ class HashingVectorizer(Preprocessor):
 
         if "_columns" not in self.__dict__:
             self._columns = []
+        if "_num_features" not in self.__dict__:
+            # `num_features` is required for hashing and wasn't optional historically.
+            # Default to a minimal valid value for legacy, partially populated states.
+            self._num_features = 1
         if "_tokenization_fn" not in self.__dict__:
             self._tokenization_fn = simple_split_tokenizer
         if "_output_columns" not in self.__dict__:
